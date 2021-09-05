@@ -1,2 +1,8 @@
 [workspace]
 members = ["impulse", "impulse-sim", "thrustcurve-api"]
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = true

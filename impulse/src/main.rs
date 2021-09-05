@@ -2,10 +2,17 @@
 
 #![deny(unsafe_code)]
 
-use iced::{button, Align, Button, Column, Element, Sandbox, Settings, Text};
+use iced::{button, window, Align, Button, Column, Element, Sandbox, Settings, Text};
 
 fn main() -> iced::Result {
-    Counter::run(Settings::default())
+    Counter::run(Settings {
+        window: window::Settings {
+            size: (100, 100),
+            ..Default::default()
+        },
+        antialiasing: true,
+        ..Default::default()
+    })
 }
 
 #[derive(Default, Debug)]

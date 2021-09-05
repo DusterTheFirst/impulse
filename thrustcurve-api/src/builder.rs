@@ -1,12 +1,9 @@
-use hyper::{
-    body::{self, Bytes},
-    Body, Request,
-};
 use serde::Serialize;
 
 use crate::{
-    model::{ApiResult, Availability, Metadata, MotorType},
-    Error, InnerClient, API_URL,
+    get_endpoint,
+    model::{Availability, Metadata, MotorType},
+    Error, InnerClient,
 };
 
 macro_rules! by {
@@ -60,27 +57,7 @@ impl MetadataBuilder {
         }
     }
 
-    pub async fn get(self) -> Result<Metadata, Error> {
-        let req = Request::builder()
-            .method("POST")
-            .header("Content-Type", "application/json")
-            .uri(format!("{}/metadata.json", API_URL))
-            .body(Body::from(serde_json::to_vec(&self).unwrap()))?;
-
-        let response = self.client.request(req).await?;
-
-        if !response.status().is_success() {
-            return Err(Error::Status {
-                code: response.status(),
-            });
-        }
-
-        let body: Bytes = body::to_bytes(response.into_body()).await?;
-
-        let value: ApiResult<Metadata> = serde_json::from_slice(&body[..])?;
-
-        dbg!(value);
-
-        todo!()
+    pub async fn get(self) -> Result<Option<Metadata>, Error> {
+        get_endpoint(self.client.clone(), &self, "metadata.json").await
     }
 }
