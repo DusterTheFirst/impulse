@@ -7,3 +7,4 @@ edition = "2018"
 hyper = { version = "^0.14", features = ["client", "http2", "tcp"] }
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
+paste = "1.0"
