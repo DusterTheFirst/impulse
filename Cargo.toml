@@ -1,0 +1,2 @@
+[workspace]
+members = ["impulse", "impulse-sim", "thrustcurve-api"]
