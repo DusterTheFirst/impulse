@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-iced = { version = "0.3.0", features = ["glow", "async-std"] }
+iced = { version = "0.3", features = ["glow", "async-std", "glow_canvas"] }
+plotters = "0.3"
+plotters-iced = "0.1"
+crossfire = "0.1"

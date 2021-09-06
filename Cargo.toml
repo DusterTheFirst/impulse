@@ -1,5 +1,5 @@
 [workspace]
-members = ["impulse", "impulse-sim", "thrustcurve-api"]
+members = ["impulse", "thrustcurve-api"]
 
 [profile.dev.package."*"]
 opt-level = 3

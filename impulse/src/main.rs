@@ -2,64 +2,34 @@
 
 #![deny(unsafe_code)]
 
-use iced::{button, window, Align, Button, Column, Element, Sandbox, Settings, Text};
+use std::thread;
+
+use crossfire::mpsc;
+use iced::{window, Application, Settings};
+use sim::simulation_thread;
+use ui::{Counter, UIChannels};
+
+mod model;
+mod sim;
+mod ui;
 
 fn main() -> iced::Result {
+    let (to_sim, from_ui) = mpsc::bounded_tx_future_rx_blocking(10);
+    let (to_ui, from_sim) = mpsc::bounded_tx_blocking_rx_future(10);
+
+    thread::spawn(move || {
+        simulation_thread(to_ui, from_ui);
+    });
+
     Counter::run(Settings {
         window: window::Settings {
-            size: (100, 100),
+            size: (750, 500),
             ..Default::default()
         },
         antialiasing: true,
-        ..Default::default()
+        flags: UIChannels { to_sim, from_sim },
+        default_font: Settings::<()>::default().default_font,
+        default_text_size: Settings::<()>::default().default_text_size,
+        exit_on_close_request: Settings::<()>::default().exit_on_close_request,
     })
-}
-
-#[derive(Default, Debug)]
-struct Counter {
-    value: i32,
-
-    increment_button: button::State,
-    decrement_button: button::State,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Message {
-    Increment,
-    Decrement,
-}
-
-impl Sandbox for Counter {
-    type Message = Message;
-
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn title(&self) -> String {
-        String::from("Counter Test")
-    }
-
-    fn update(&mut self, message: Self::Message) {
-        match message {
-            Message::Increment => self.value += 1,
-            Message::Decrement => self.value -= 1,
-        }
-    }
-
-    fn view(&mut self) -> Element<'_, Self::Message> {
-        Column::new()
-            .padding(20)
-            .align_items(Align::Center)
-            .push(
-                Button::new(&mut self.increment_button, Text::new("Increment"))
-                    .on_press(Message::Increment),
-            )
-            .push(Text::new(self.value.to_string()).size(50))
-            .push(
-                Button::new(&mut self.decrement_button, Text::new("Decrement"))
-                    .on_press(Message::Decrement),
-            )
-            .into()
-    }
 }
