@@ -1,10 +1,16 @@
 [package]
+edition = "2018"
 name = "impulse"
 version = "0.1.0"
-edition = "2018"
 
 [dependencies]
-iced = { version = "0.3", features = ["glow", "async-std", "glow_canvas"] }
+crossfire = "0.1"
+iced_futures = "0.3"
 plotters = "0.3"
 plotters-iced = "0.1"
-crossfire = "0.1"
+tracing = "0.1"
+tracing-subscriber = "0.2"
+
+[dependencies.iced]
+features = ["glow", "async-std", "glow_canvas"]
+version = "0.3"

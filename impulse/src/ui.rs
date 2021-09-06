@@ -1,12 +1,15 @@
 use std::fmt::Debug;
 
-use crossfire::mpsc::{RxFuture, SharedSenderBRecvF, SharedSenderFRecvB, TxFuture};
+use crossfire::mpmc::{RxFuture, SharedSenderBRecvF, SharedSenderFRecvB, TxFuture};
 use iced::{
     button, executor, Align, Application, Button, Clipboard, Column, Command, Container, Element,
     Length, Subscription, Text,
 };
 
-use crate::model::SimulationStatus;
+use crate::{
+    model::{InterfaceEvent, SimulationEvent, SimulationStatus},
+    sim,
+};
 
 pub struct Counter {
     simulation_status: SimulationStatus,
@@ -18,14 +21,15 @@ pub struct Counter {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
-    None,
     StartSimulation,
-    StopStimulation,
+    StopSimulation,
+    DisableSimulationButton,
+    SimulationEvent(SimulationEvent),
 }
 
 pub struct UIChannels {
-    pub to_sim: TxFuture<(), SharedSenderFRecvB>,
-    pub from_sim: RxFuture<(), SharedSenderBRecvF>,
+    pub to_sim: TxFuture<InterfaceEvent, SharedSenderFRecvB>,
+    pub from_sim: RxFuture<SimulationEvent, SharedSenderBRecvF>,
 }
 
 impl Application for Counter {
@@ -53,7 +57,7 @@ impl Application for Counter {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        Subscription::none()
+        sim::subscribe(self.channels.from_sim.clone()).map(Message::SimulationEvent)
     }
 
     fn update(
@@ -61,34 +65,38 @@ impl Application for Counter {
         message: Self::Message,
         _clipboard: &mut Clipboard,
     ) -> Command<Self::Message> {
-        match message {
-            Message::None => Command::none(),
-            Message::StartSimulation | Message::StopStimulation => {
-                Command::perform(
-                    {
-                        let to_sim = self.channels.to_sim.clone();
+        let to_sim = self.channels.to_sim.clone();
 
-                        async move {
-                            match message {
-                                Message::StartSimulation => to_sim.send(()).await, // FIXME:
-                                Message::StopStimulation => to_sim.send(()).await,
-                                _ => unreachable!(),
-                            }
-                            .unwrap();
-                        }
-                    },
-                    |_| Message::None, /* FIXME: */
+        match message {
+            Message::StartSimulation => {
+                Command::perform(
+                    async move { to_sim.send(InterfaceEvent::StartSimulation).await },
+                    |_| Message::DisableSimulationButton, /* FIXME: */
                 )
             }
+            Message::StopSimulation => todo!(),
+            Message::DisableSimulationButton => {
+                self.simulation_status = SimulationStatus::Pending;
+
+                Command::none()
+            }
+            Message::SimulationEvent(e) => match e {
+                SimulationEvent::StatusUpdate(status) => {
+                    self.simulation_status = status;
+
+                    Command::none()
+                }
+            },
         }
     }
 
     fn view(&mut self) -> Element<'_, Self::Message> {
-        let (button_label, button_message) = match self.simulation_status {
+        let button_properties = match self.simulation_status {
             SimulationStatus::Idle | SimulationStatus::Complete | SimulationStatus::Cancelled => {
-                ("Start Simulation", Message::StartSimulation)
+                Some(("Start Simulation", Message::StartSimulation))
             }
-            SimulationStatus::Running => ("Stop Simulation", Message::StopStimulation),
+            SimulationStatus::Running => Some(("Stop Simulation", Message::StopSimulation)),
+            SimulationStatus::Pending => None,
         };
 
         let content = Column::new()
@@ -96,11 +104,16 @@ impl Application for Counter {
             .push(Text::new(format!(
                 "Simulation Status: {}",
                 self.simulation_status
-            )))
-            .push(
+            )));
+
+        let content = if let Some((button_label, button_message)) = button_properties {
+            content.push(
                 Button::new(&mut self.button_control_sim, Text::new(button_label))
                     .on_press(button_message),
-            );
+            )
+        } else {
+            content
+        };
 
         Container::new(content)
             .width(Length::Fill)

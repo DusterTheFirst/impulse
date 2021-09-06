@@ -1,8 +1,19 @@
 use std::fmt::{self, Debug, Display};
 
 #[derive(Debug, Clone, Copy)]
+pub enum SimulationEvent {
+    StatusUpdate(SimulationStatus),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum InterfaceEvent {
+    StartSimulation
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum SimulationStatus {
     Idle,
+    Pending,
     Running,
     Complete,
     Cancelled,

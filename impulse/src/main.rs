@@ -4,9 +4,10 @@
 
 use std::thread;
 
-use crossfire::mpsc;
+use crossfire::mpmc;
 use iced::{window, Application, Settings};
 use sim::simulation_thread;
+use tracing::{info, warn};
 use ui::{Counter, UIChannels};
 
 mod model;
@@ -14,8 +15,10 @@ mod sim;
 mod ui;
 
 fn main() -> iced::Result {
-    let (to_sim, from_ui) = mpsc::bounded_tx_future_rx_blocking(10);
-    let (to_ui, from_sim) = mpsc::bounded_tx_blocking_rx_future(10);
+    tracing_subscriber::fmt().init();
+
+    let (to_sim, from_ui) = mpmc::bounded_tx_future_rx_blocking(10);
+    let (to_ui, from_sim) = mpmc::bounded_tx_blocking_rx_future(10);
 
     thread::spawn(move || {
         simulation_thread(to_ui, from_ui);
