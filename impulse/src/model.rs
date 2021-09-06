@@ -7,13 +7,13 @@ pub enum SimulationEvent {
 
 #[derive(Debug, Clone, Copy)]
 pub enum InterfaceEvent {
-    StartSimulation
+    StartSimulation,
+    StopSimulation
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SimulationStatus {
     Idle,
-    Pending,
     Running,
     Complete,
     Cancelled,
