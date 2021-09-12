@@ -1,20 +1,21 @@
-use std::fmt::{Debug, Display};
+use std::{fmt::Debug, thread::Thread};
 
 use crossfire::mpmc::{RxFuture, SharedSenderBRecvF, SharedSenderFRecvB, TxFuture};
 use iced::{
     button, executor, Align, Application, Button, Clipboard, Column, Command, Container, Element,
     Length, Subscription, Text,
 };
+use tracing::trace;
 
 use crate::{
-    model::{InterfaceEvent, SimulationEvent, SimulationStatus},
+    model::{SimulationControl, SimulationEvent, SimulationStatus},
     sim,
 };
 
 pub struct Counter {
     simulation_status: Option<SimulationStatus>,
 
-    channels: UIChannels,
+    simulation: SimulationCommunication,
 
     button_control_sim: button::State,
 }
@@ -27,9 +28,10 @@ pub enum Message {
     SimulationEvent(SimulationEvent),
 }
 
-pub struct UIChannels {
-    pub to_sim: TxFuture<InterfaceEvent, SharedSenderFRecvB>,
+pub struct SimulationCommunication {
+    pub to_sim: TxFuture<SimulationControl, SharedSenderFRecvB>,
     pub from_sim: RxFuture<SimulationEvent, SharedSenderBRecvF>,
+    pub sim_thread: Thread,
 }
 
 impl Application for Counter {
@@ -37,12 +39,12 @@ impl Application for Counter {
 
     type Executor = executor::Default;
 
-    type Flags = UIChannels;
+    type Flags = SimulationCommunication;
 
     fn new(flags: Self::Flags) -> (Self, Command<Self::Message>) {
         (
             Self {
-                channels: flags,
+                simulation: flags,
 
                 simulation_status: None,
 
@@ -63,7 +65,7 @@ impl Application for Counter {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        sim::subscribe(self.channels.from_sim.clone()).map(Message::SimulationEvent)
+        sim::subscribe(self.simulation.from_sim.clone()).map(Message::SimulationEvent)
     }
 
     fn update(
@@ -71,17 +73,24 @@ impl Application for Counter {
         message: Self::Message,
         _clipboard: &mut Clipboard,
     ) -> Command<Self::Message> {
-        let to_sim = self.channels.to_sim.clone();
+        let send_to_sim = |control| {
+            let to_sim = self.simulation.to_sim.clone();
+            let sim_thread = self.simulation.sim_thread.clone();
+
+            trace!(?control, "Sending control signal to sim");
+
+            Command::perform(
+                async move {
+                    sim_thread.unpark();
+                    to_sim.send(control).await
+                },
+                |_| Message::PendAction,
+            )
+        };
 
         match message {
-            Message::StartSimulation => Command::perform(
-                async move { to_sim.send(InterfaceEvent::StartSimulation).await },
-                |_| Message::PendAction,
-            ),
-            Message::StopSimulation => Command::perform(
-                async move { to_sim.send(InterfaceEvent::StopSimulation).await },
-                |_| Message::PendAction,
-            ),
+            Message::StartSimulation => send_to_sim(SimulationControl::Start),
+            Message::StopSimulation => send_to_sim(SimulationControl::Stop),
             Message::PendAction => {
                 self.simulation_status.take();
 

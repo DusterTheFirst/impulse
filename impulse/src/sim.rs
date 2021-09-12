@@ -1,15 +1,20 @@
 use std::{
     any::TypeId,
     hash::{Hash, Hasher},
+    thread,
 };
 
-use crossfire::mpmc::{RxBlocking, RxFuture, SharedSenderBRecvF, SharedSenderFRecvB, TxBlocking};
+use crossfire::{
+    mpmc::{RxBlocking, RxFuture, SharedSenderBRecvF, SharedSenderFRecvB, TxBlocking},
+    mpsc::TryRecvError,
+};
 use iced::Subscription;
 use iced_futures::{subscription::Recipe, BoxStream};
-use tracing::{info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
-use crate::model::{InterfaceEvent, SimulationEvent, SimulationStatus};
+use crate::model::{SimulationControl, SimulationEvent, SimulationStatus};
 
+/// Get a subscription to the events emitted from the simulation thread
 pub fn subscribe(
     from_sim: RxFuture<SimulationEvent, SharedSenderBRecvF>,
 ) -> Subscription<SimulationEvent> {
@@ -34,7 +39,7 @@ impl<H: Hasher, E> Recipe<H, E> for SimulationSubscription {
 
 pub fn simulation_thread(
     to_ui: TxBlocking<SimulationEvent, SharedSenderBRecvF>,
-    from_ui: RxBlocking<InterfaceEvent, SharedSenderFRecvB>,
+    from_ui: RxBlocking<SimulationControl, SharedSenderFRecvB>,
 ) {
     simulation_thread_internal(to_ui, from_ui);
 
@@ -44,7 +49,7 @@ pub fn simulation_thread(
 
 fn simulation_thread_internal(
     to_ui: TxBlocking<SimulationEvent, SharedSenderBRecvF>,
-    from_ui: RxBlocking<InterfaceEvent, SharedSenderFRecvB>,
+    from_ui: RxBlocking<SimulationControl, SharedSenderFRecvB>,
 ) -> Option<()> {
     let mut status = SimulationStatus::Idle;
 
@@ -54,21 +59,34 @@ fn simulation_thread_internal(
         to_ui.send(SimulationEvent::StatusUpdate(new_status)).ok()
     };
 
-    update_status(&mut status, SimulationStatus::Idle);
-
     loop {
-        let data = from_ui.recv().ok()?;
+        debug!("Parking simulation thread");
+        update_status(&mut status, SimulationStatus::Idle);
+        thread::park();
 
-        trace!(%status, "Received InterfaceEvent: {:?}", data);
+        loop {
+            let control = match from_ui.try_recv() {
+                Ok(e) => Some(e),
+                Err(TryRecvError::Empty) => None,
+                Err(TryRecvError::Disconnected) => todo!(),
+            };
 
-        match (data, status) {
-            (InterfaceEvent::StartSimulation, SimulationStatus::Idle) => {
-                update_status(&mut status, SimulationStatus::Running)?;
+            trace!(?status, ?control);
+
+            match (control, status) {
+                (None, SimulationStatus::Idle) => {
+                    break;
+                }
+                (None, _) => unimplemented!("Simulation not setup yet, but this should tick it"),
+                (Some(SimulationControl::Start), SimulationStatus::Idle) => {
+                    update_status(&mut status, SimulationStatus::Running)?;
+                }
+                (Some(SimulationControl::Stop), SimulationStatus::Running) => {
+                    update_status(&mut status, SimulationStatus::Cancelled)?;
+                    break;
+                }
+                _ => unimplemented!(),
             }
-            (InterfaceEvent::StopSimulation, SimulationStatus::Running) => {
-                update_status(&mut status, SimulationStatus::Cancelled)?;
-            }
-            _ => unimplemented!(),
         }
     }
 }

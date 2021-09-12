@@ -6,9 +6,9 @@ pub enum SimulationEvent {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum InterfaceEvent {
-    StartSimulation,
-    StopSimulation
+pub enum SimulationControl {
+    Start,
+    Stop,
 }
 
 #[derive(Debug, Clone, Copy)]
