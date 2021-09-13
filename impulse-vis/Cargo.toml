@@ -1,0 +1,9 @@
+[package]
+name = "impulse-vis"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+three-d = "0.8.0"
+tracing = "0.1.26"
+tracing-subscriber = "0.2.20"

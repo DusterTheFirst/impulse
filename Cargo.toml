@@ -1,5 +1,6 @@
 [workspace]
-members = ["impulse", "thrustcurve-api"]
+members = ["impulse", "thrustcurve-api", "impulse-vis"]
+default-members = ["impulse-vis"]
 
 [profile.dev.package."*"]
 opt-level = 3
