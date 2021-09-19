@@ -171,8 +171,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             ClearState::color_and_depth(1.0, 1.0, 1.0, 1.0, 1.0),
             || {
                 axes.render(&camera)?;
-                ground.render_normals(&camera)?;
                 pipeline.light_pass(&camera, None, &[&sunlight], &[], &[])?;
+                ground.render_normals(&camera)?;
 
                 gui.render()?;
 
