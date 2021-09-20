@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, error::Error, time::Instant};
+use std::{collections::VecDeque, error::Error, iter, time::Instant};
 
 use three_d::{core::Indices, *};
 
@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut control = OrbitControl::new(
         *camera.target(),
         0.5 * camera.target().distance(*camera.position()),
-        5.0 * camera.target().distance(*camera.position()),
+        10.0 * camera.target().distance(*camera.position()),
     );
 
     let axes = Axes::new(&context, 2.0, 10.0)?;
@@ -52,18 +52,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             name: "ground".into(),
             material_name: None,
             positions: [
-                vec3(-100.0, 0.0, -100.0),
-                vec3(100.0, 0.0, -100.0),
-                vec3(-100.0, 0.0, 100.0),
-                vec3(100.0, 0.0, 100.0),
+                vec3(-10000.0, 0.0, 10000.0),
+                vec3(10000.0, 0.0, 10000.0),
+                vec3(0.0, 0.0, -10000.0),
             ]
             .iter()
             .flat_map(|v| [v.x, v.y, v.z])
             .collect(),
-            indices: Some(Indices::U32(vec![0, 1, 3, 0, 2, 3])),
+            indices: None,
             normals: Some(
-                [vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0)]
-                    .iter()
+                iter::repeat(vec3(0.0, 1.0, 0.0))
+                    .take(3)
                     .flat_map(|v| [v.x, v.y, v.z])
                     .collect(),
             ),
@@ -72,7 +71,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
 
-    let sunlight = DirectionalLight::new(&context, 1.0, Color::WHITE, &vec3(0.0, 0.0, 1.0))?;
+    let mut cube = Model::new(&context, &CPUMesh::cube())?;
+    cube.set_transformation(Mat4::from_translation(Vec3::new(0.0, 10.0, 2.0)));
+
+    let mut sunlight = DirectionalLight::new(&context, 0.5, Color::WHITE, &vec3(0.0, -1.0, 0.2))?;
 
     let mut fps_rolling_average = VecDeque::with_capacity(1000);
     let mut frame_time_rolling_average = VecDeque::with_capacity(1000);
@@ -81,98 +83,101 @@ fn main() -> Result<(), Box<dyn Error>> {
     window.render_loop(move |mut frame_input: FrameInput| {
         let frame_start = Instant::now();
 
-        let mut change = frame_input.first_frame;
-
         if fps_rolling_average.len() == fps_rolling_average.capacity() {
             fps_rolling_average.pop_back();
         }
         fps_rolling_average.push_front(1000.0 / frame_input.elapsed_time);
 
         // Ensure the viewport matches the current window viewport which changes if the window is resized
-        change |= gui
-            .update(&mut frame_input, |gui_context| {
-                use three_d::egui::{plot::*, *};
+        gui.update(&mut frame_input, |gui_context| {
+            use three_d::egui::{plot::*, *};
 
-                Window::new("Visualization Properties")
-                    // .default_size((0.0, 0.0))
-                    .show(&gui_context, |ui| {
-                        ui.heading("Camera Position");
-                        ui.label(format!("{:?}", camera.position()));
-                        ui.heading("Camera Target");
-                        ui.label(format!("{:?}", camera.target()));
+            Window::new("Visualization Properties")
+                // .default_size((0.0, 0.0))
+                .show(&gui_context, |ui| {
+                    ui.heading("Camera Position");
+                    ui.label(format!("{:?}", camera.position()));
+                    ui.heading("Camera Target");
+                    ui.label(format!("{:?}", camera.target()));
 
-                        ui.separator();
-                        ui.heading("Frame Time");
-                        ui.label(format!(
-                            "{} ms",
-                            frame_time_rolling_average.iter().sum::<u128>()
-                                / frame_time_rolling_average.len().max(1) as u128
-                        ));
-                        ui.add(
-                            Plot::new("Frame Time")
-                                .line(
-                                    Line::new(Values::from_values_iter(
-                                        frame_time_rolling_average
-                                            .iter()
-                                            .enumerate()
-                                            .map(|(x, &y)| Value::new(-(x as f64), y as f64)),
-                                    ))
-                                    .highlight(),
-                                )
-                                .allow_zoom(false)
-                                .allow_drag(false)
-                                .include_y(1.0 / 60.0)
-                                .include_y(0)
-                                .view_aspect(2.0),
-                        );
-                        ui.heading("Frame Per Second");
-                        ui.label(format!(
-                            "{:.1}",
-                            fps_rolling_average.iter().sum::<f64>()
-                                / fps_rolling_average.len() as f64
-                        ));
-                        ui.label(format!("{}", fps_rolling_average.len()));
-                        ui.add(
-                            Plot::new("Frame Time")
-                                .line(
-                                    Line::new(Values::from_values_iter(
-                                        fps_rolling_average
-                                            .iter()
-                                            .enumerate()
-                                            .map(|(x, &y)| Value::new(-(x as f64), y)),
-                                    ))
-                                    .highlight(),
-                                )
-                                .allow_zoom(false)
-                                .allow_drag(false)
-                                .include_y(0)
-                                .view_aspect(2.0),
-                        );
+                    ui.separator();
+                    ui.heading("Frame Time");
+                    ui.label(format!(
+                        "{} ms",
+                        frame_time_rolling_average.iter().sum::<u128>()
+                            / frame_time_rolling_average.len().max(1) as u128
+                    ));
+                    ui.add(
+                        Plot::new("Frame Time")
+                            .line(
+                                Line::new(Values::from_values_iter(
+                                    frame_time_rolling_average
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(x, &y)| Value::new(-(x as f64), y as f64)),
+                                ))
+                                .highlight(),
+                            )
+                            .allow_zoom(false)
+                            .allow_drag(false)
+                            .include_y(1.0 / 60.0)
+                            .include_y(0)
+                            .view_aspect(2.0),
+                    );
+                    ui.heading("Frame Per Second");
+                    ui.label(format!(
+                        "{:.1}",
+                        fps_rolling_average.iter().sum::<f64>() / fps_rolling_average.len() as f64
+                    ));
+                    ui.label(format!("{}", fps_rolling_average.len()));
+                    ui.add(
+                        Plot::new("Frame Time")
+                            .line(
+                                Line::new(Values::from_values_iter(
+                                    fps_rolling_average
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(x, &y)| Value::new(-(x as f64), y)),
+                                ))
+                                .highlight(),
+                            )
+                            .allow_zoom(false)
+                            .allow_drag(false)
+                            .include_y(0)
+                            .view_aspect(2.0),
+                    );
 
-                        // ui.allocate_space(ui.available_size());
-                    });
-            })
-            .unwrap();
+                    // ui.allocate_space(ui.available_size());
+                });
+        })
+        .unwrap();
 
-        change |= camera.set_viewport(frame_input.viewport).unwrap();
-        change |= control
+        // Setup camera
+        camera.set_viewport(frame_input.viewport).unwrap();
+        control
             .handle_events(&mut camera, &mut frame_input.events)
             .unwrap();
 
-        if change {
-            pipeline
-                .geometry_pass(&camera, &[(&ground, &material)])
-                .unwrap();
-        }
+        // Move cube
+        cube.set_transformation(Mat4::from_angle_x(radians(0.01)).concat(cube.transformation()));
+
+        // Calculate shadows
+        sunlight
+            .generate_shadow_map(&Vec3::new(0.0, 0.0, 0.0), 40.0, 200.0, 1024, 1024, &[&cube])
+            .unwrap();
+
+        // Calculate geometry
+        pipeline
+            .geometry_pass(&camera, &[(&ground, &material), (&cube, &material)])
+            .unwrap();
 
         // Start writing to the screen and clears the color and depth
         Screen::write(
             &context,
-            ClearState::color_and_depth(1.0, 1.0, 1.0, 1.0, 1.0),
+            ClearState::color_and_depth(0.2, 0.2, 0.2, 1.0, 1.0),
             || {
-                axes.render(&camera)?;
+                // axes.render(&camera)?;
                 pipeline.light_pass(&camera, None, &[&sunlight], &[], &[])?;
-                ground.render_normals(&camera)?;
 
                 gui.render()?;
 
